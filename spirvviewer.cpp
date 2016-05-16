@@ -7,11 +7,7 @@
 #include <glm/vec4.hpp>
 #include <SDL.h>
 
-enum class Type {
-    Bool, Int, Float, IntVector, FloatVector, Matrix
-};
-
-typedef unsigned Id;
+#include "Type.h"
 
 struct Variable {
     Variable(): type(Type::Int) {}

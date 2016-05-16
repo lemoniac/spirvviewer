@@ -6,6 +6,8 @@
 #include <vector>
 #include "spirv.h"
 
+#include "Type.h"
+
 struct Instruction {
     uint16_t opcode;
     uint16_t length;
@@ -22,6 +24,7 @@ struct Header {
 };
 
 std::map<uint32_t, std::string> names;
+std::map<uint32_t, Type> types;
 
 const std::vector<std::string> storage_classes = {
     "UniformConstant",
@@ -66,6 +69,24 @@ const std::vector<std::string> memory_models = {
     "OpenCL"
 };
 
+const std::vector<std::string> function_controls = {
+    "None",
+    "Inline",
+    "DontInline",
+    "Pure",
+    "Const"
+};
+
+unsigned identation = 0;
+void incIdent() { identation++; }
+void decIdent() { if(identation == 0) throw std::runtime_error("???"); identation--; }
+std::string ident()
+{
+    std::string res = "";
+    for(unsigned i = 0; i < identation; i++) res+= "    ";
+    return res;
+}
+
 struct InstructionDecoder {
     InstructionDecoder(const Instruction &instruction): length(instruction.length), operands(&instruction.rest) { }
 
@@ -88,14 +109,34 @@ struct InstructionDecoder {
         return std::string(start, length - 1);
     }
 
-    void decodeName()
+    void decodeSource() // 3
+    {
+        uint32_t source_language = decodeId();
+        uint32_t version = decodeId();
+        std::cout << ident() << "Source " << source_language << " " << version;
+        if(offset + 1 < length)
+        {
+            uint32_t file = decodeId();
+            std::cout << " " << file;
+        }
+
+        if(offset + 1 < length)
+        {
+            std::string source = decodeLiteralString();
+            std::cout << " " << source;
+        }
+
+        std::cout << std::endl;
+    }
+
+    void decodeName() // 5
     {
         uint32_t target = decodeId();
         std::string name = decodeLiteralString();
 
         names[target] = name;
 
-        std::cout << "Name " << target << " " << name << std::endl;
+        std::cout << ident() << "Name " << target << " " << name << std::endl;
     }
 
     void decodeExtInstImport()
@@ -103,7 +144,7 @@ struct InstructionDecoder {
         uint32_t result = decodeId();
         std::string name = decodeLiteralString();
 
-        std::cout << "ExtInstImport " << result << " " << name << std::endl;
+        std::cout << ident() << "ExtInstImport " << result << " " << name << std::endl;
     }
 
     void decodeMemoryModel() // 14
@@ -111,7 +152,7 @@ struct InstructionDecoder {
         uint32_t addressingModel = decodeId();
         uint32_t memoryModel = decodeId();
 
-        std::cout << "MemoryModel " << addressing_models[addressingModel] << " " << memory_models[memoryModel] << std::endl;
+        std::cout << ident() << "MemoryModel " << addressing_models[addressingModel] << " " << memory_models[memoryModel] << std::endl;
     }
 
     void decodeEntryPoint() // 15
@@ -120,7 +161,7 @@ struct InstructionDecoder {
         uint32_t entryPoint = decodeId();
         std::string name = decodeLiteralString();
 
-        std::cout << "EntryPoint " << execution_models.at(executionModel) << " " << entryPoint << " " << name;
+        std::cout << ident() << "EntryPoint " << execution_models.at(executionModel) << " " << entryPoint << " " << name;
 
         while(offset + 1 < length)
         {
@@ -131,52 +172,167 @@ struct InstructionDecoder {
         std::cout << std::endl;
     }
 
-    void decodeCapability()
+    void decodeExecutionMode() // 16
     {
-        uint32_t capability = decodeId();
-        std::cout << "Capability " << capabilities[capability] << std::endl;
+        uint32_t entry_point = decodeId();
+        uint32_t mode = decodeId();
+        std::cout << ident() << "ExecutionMode " << entry_point << " " << mode;
+
+        while(offset + 1 < length)
+        {
+            uint32_t optional = decodeId();
+            std::cout << " " << optional;
+        }
+
+        std::cout << std::endl;
     }
 
-    void decodeLoad()
+    void decodeCapability() // 17
+    {
+        uint32_t capability = decodeId();
+        std::cout << ident() << "Capability " << capabilities[capability] << std::endl;
+    }
+
+    void decodeTypeVoid() // 19
+    {
+        uint32_t result = decodeId();
+        types[result] = Type{Type::Void};
+        std::cout << ident() << "TypeVoid " << result << std::endl;
+    }
+
+    void decodeTypeBool() // 20
+    {
+        uint32_t result = decodeId();
+        types[result] = Type{Type::Bool};
+        std::cout << ident() << "TypeBool " << result << std::endl;
+    }
+
+    void decodeTypeInt() // 21
+    {
+        uint32_t result = decodeId();
+        uint32_t width = decodeId();
+        uint32_t signedness = decodeId();
+        types[result] = Type{Type::Int, width, signedness != 0};
+        std::cout << ident() << "TypeInt " << result << " " << width << " " << signedness << std::endl;
+    }
+
+    void decodeTypeFloat() // 22
+    {
+        uint32_t result = decodeId();
+        uint32_t width = decodeId();
+        types[result] = Type{Type::Float, width};
+        std::cout << ident() << "TypeFloat " << result << " " << width << std::endl;
+    }
+
+    void decodeTypeVector() // 23
+    {
+        uint32_t result = decodeId();
+        uint32_t component_type = decodeId();
+        uint32_t component_count = decodeId();
+        types[result] = Type{Type::Vector, component_count};
+        std::cout << ident() << "TypeVector " << result << " " << component_type << " " << component_count << std::endl;
+    }
+
+    void decodeTypeMatrix() // 24
+    {
+        uint32_t result = decodeId();
+        uint32_t column_type = decodeId();
+        uint32_t column_count = decodeId();
+        types[result] = Type{Type::Matrix, column_count};
+        std::cout << "TypeMatrix " << result << " " << column_type << " " << column_count << std::endl;
+    }
+
+    void decodeTypeArray() // 28
+    {
+        uint32_t result = decodeId();
+        uint32_t element_type = decodeId();
+        uint32_t length = decodeId();
+        types[result] = Type{Type::Array, length};
+        std::cout << ident() << "TypeArray " << result << " " << element_type << " " << length << std::endl;
+    }
+
+    void decodeTypePointer() // 32
+    {
+        uint32_t result = decodeId();
+        uint32_t storage_class = decodeId();
+        uint32_t type = decodeId();
+        types[result] = Type{Type::Pointer};
+        std::cout << ident() << "TypePointer " << result << " " << storage_classes[storage_class] << " " << type << std::endl;
+    }
+
+    void decodeTypeFunction() // 33
+    {
+        uint32_t result = decodeId();
+        uint32_t return_type = decodeId();
+        std::cout << ident() << "TypeFunction " << result << " " << return_type << " (";
+        while(offset + 1 < length)
+        {
+            uint32_t paremeter_type = decodeId();
+            std::cout << " " << paremeter_type;
+        }
+        std::cout << ")" << std::endl;
+    }
+
+    void decodeConstant() // 43
     {
         uint32_t resultType = decodeId();
         uint32_t result = decodeId();
-        uint32_t pointer = decodeId();
 
-        std::cout << "Load " << resultType << " " << result << " " << pointer;
+        std::cout << ident() << "Constant " << resultType << " " << result;
 
-        if(offset + 1 < length)
+        while(offset + 1 < length)
         {
-            uint32_t memoryAccess = decodeId();
-            std::cout << " " << memoryAccess;
+            uint32_t constituent = decodeId();
+
+            auto type = types.find(resultType);
+            if(type != types.end())
+            {
+                switch(type->second.type)
+                {
+                    case Type::Float:
+                    {
+                        union {
+                            uint32_t u;
+                            float f;
+                        } tmp;
+                        tmp.u = constituent;
+                        std::cout << " " << tmp.u << " " << tmp.f;
+                        break;
+                    }
+                    default:
+                        std::cout << " " << constituent;
+                }
+            }
         }
 
         std::cout << std::endl;
     }
 
-    void decodeStore()
+    void decodeFunction() // 54
     {
-        uint32_t pointer = decodeId();
-        uint32_t object = decodeId();
+        uint32_t result_type = decodeId();
+        uint32_t result  = decodeId();
+        uint32_t function_control = decodeId();
+        uint32_t function_type = decodeId();
 
-        std::cout << "Store " << pointer << " " << object;
+        std::cout << ident() << "Function " << result_type << " " << names[result] << " " << function_controls[function_control] << " " << function_type << std::endl;
 
-        if(offset + 1 < length)
-        {
-            uint32_t memoryAccess = decodeId();
-            std::cout << " " << memoryAccess;
-        }
-
-        std::cout << std::endl;
+        incIdent();
     }
 
-    void decodeVariable()
+    void decodeFunctionEnd() // 56
+    {
+        decIdent();
+        std::cout << ident() << "FunctionEnd" << std::endl;
+    }
+
+    void decodeVariable() // 59
     {
         uint32_t resultType = decodeId();
         uint32_t result = decodeId();
         uint32_t storage_class = decodeId();
 
-        std::cout << "Variable " << resultType << " " << result << " " << storage_classes.at(storage_class);
+        std::cout << ident() << "Variable " << resultType << " " << result << " " << storage_classes.at(storage_class);
 
         if(offset + 1 < length)
         {
@@ -187,47 +343,80 @@ struct InstructionDecoder {
         std::cout << std::endl;
     }
 
-    void decodeConstant()
+    void decodeLoad() // 61
     {
         uint32_t resultType = decodeId();
         uint32_t result = decodeId();
+        uint32_t pointer = decodeId();
 
-        std::cout << "Constant " << resultType << " " << result;
+        std::cout << ident() << "Load " << resultType << " " << result << " " << pointer;
 
-        while(offset + 1 < length)
+        if(offset + 1 < length)
         {
-            uint32_t constituent = decodeId();
-            std::cout << " " << constituent;
+            uint32_t memoryAccess = decodeId();
+            std::cout << " " << memoryAccess;
         }
 
         std::cout << std::endl;
     }
 
-    void decodeFAdd()
+    void decodeStore() // 62
+    {
+        uint32_t pointer = decodeId();
+        uint32_t object = decodeId();
+
+        std::cout << ident() << "Store " << pointer << " " << object;
+
+        if(offset + 1 < length)
+        {
+            uint32_t memoryAccess = decodeId();
+            std::cout << " " << memoryAccess;
+        }
+
+        std::cout << std::endl;
+    }
+
+    void decodeAccessChain() // 65
+    {
+        uint32_t result_type = decodeId();
+        uint32_t result = decodeId();
+        uint32_t base = decodeId();
+
+        std::cout << ident() << "AccessChain " << result_type << " " << result << " " << base;
+
+        while(offset + 1 < length)
+        {
+            uint32_t index = decodeId();
+            std::cout << " " << index;
+        }
+        std::cout << std::endl;
+    }
+
+    void decodeFAdd() // 129
     {
         uint32_t resultType = decodeId();
         uint32_t result = decodeId();
         uint32_t operand1 = decodeId();
         uint32_t operand2 = decodeId();
 
-        std::cout << "FAdd " << resultType << " " << result << " " << operand1 << " " << operand2 << std::endl;
+        std::cout << ident() << "FAdd " << resultType << " " << result << " " << operand1 << " " << operand2 << std::endl;
     }
 
-    void decodeFSub()
+    void decodeFSub() // 131
     {
         uint32_t resultType = decodeId();
         uint32_t result = decodeId();
         uint32_t operand1 = decodeId();
         uint32_t operand2 = decodeId();
 
-        std::cout << "FSub " << resultType << " " << result << " " << operand1 << " " << operand2 << std::endl;
+        std::cout << ident() << "FSub " << resultType << " " << result << " " << operand1 << " " << operand2 << std::endl;
     }
 
-    void decodeLabel()
+    void decodeLabel() // 248
     {
         uint32_t result = decodeId();
 
-        std::cout << "Label " << result << std::endl;
+        std::cout << ident() << "Label " << result << std::endl;
     }
 
     unsigned offset = 0;
@@ -238,7 +427,7 @@ struct InstructionDecoder {
 
 void output(const std::string &nmemonic, const Instruction &i)
 {
-    std::cout << nmemonic << " ";
+    std::cout << ident() << nmemonic << " ";
 
     std::cout << std::dec;
     std::cout << i.opcode << " " << i.length << std::endl;
@@ -246,7 +435,9 @@ void output(const std::string &nmemonic, const Instruction &i)
     std::cout << std::hex;
     const uint32_t *operands = &i.rest;
     for(unsigned j = 0; j < i.length - 1; j++)
-        std::cout << "   " << operands[j] << std::endl;
+    {
+        std::cout << ident() << "   " << operands[j] << std::endl;
+    }
 }
 
 void decode(const Instruction &i)
@@ -257,7 +448,7 @@ void decode(const Instruction &i)
     {
         case spv::Op::OpNop: output("Nop", i); break; // 0
 
-        case spv::Op::OpSource: output("Source", i); break; // 3
+        case spv::Op::OpSource: decoder.decodeSource(); break; // 3
 
         case spv::Op::OpName: decoder.decodeName(); break; // 5
         case spv::Op::OpMemberName: output("Member", i); break; // 6
@@ -267,23 +458,23 @@ void decode(const Instruction &i)
 
         case spv::Op::OpMemoryModel: decoder.decodeMemoryModel(); break; // 14
         case spv::Op::OpEntryPoint: decoder.decodeEntryPoint(); break; // 15
-        case spv::Op::OpExecutionMode: output("ExecutionMode", i); break; // 16
+        case spv::Op::OpExecutionMode: decoder.decodeExecutionMode(); break; // 16
 
         case spv::Op::OpCapability: decoder.decodeCapability(); break; // 17
 
-        case spv::Op::OpTypeVoid: output("TypeVoid", i); break; // 19
-        case spv::Op::OpTypeBool: output("TypeBool", i); break; // 20
-        case spv::Op::OpTypeInt: output("TypeInt", i); break; // 21
-        case spv::Op::OpTypeFloat: output("TypeFloat", i); break; // 22
-        case spv::Op::OpTypeVector: output("TypeVector", i); break; // 23
-        case spv::Op::OpTypeMatrix: output("TypeMatrix", i); break; // 24
+        case spv::Op::OpTypeVoid: decoder.decodeTypeVoid(); break; // 19
+        case spv::Op::OpTypeBool: decoder.decodeTypeBool(); break; // 20
+        case spv::Op::OpTypeInt: decoder.decodeTypeInt(); break; // 21
+        case spv::Op::OpTypeFloat: decoder.decodeTypeFloat(); break; // 22
+        case spv::Op::OpTypeVector: decoder.decodeTypeVector(); break; // 23
+        case spv::Op::OpTypeMatrix: decoder.decodeTypeMatrix(); break; // 24
 
-        case spv::Op::OpTypeArray: output("TypeArray", i); break; // 28
+        case spv::Op::OpTypeArray: decoder.decodeTypeArray(); break; // 28
 
         case spv::Op::OpTypeStruct: output("TypeStruct", i); break; // 30
 
-        case spv::Op::OpTypePointer: output("TypePointer", i); break; // 32
-        case spv::Op::OpTypeFunction: output("TypeFunction", i); break; // 33
+        case spv::Op::OpTypePointer: decoder.decodeTypePointer(); break; // 32
+        case spv::Op::OpTypeFunction: decoder.decodeTypeFunction(); break; // 33
 
         case spv::Op::OpConstantTrue: output("ConstantTrue", i); break; // 41
         case spv::Op::OpConstantFalse: output("ConstantFalse", i); break; // 42
@@ -293,9 +484,9 @@ void decode(const Instruction &i)
         case spv::Op::OpConstantNull: output("ConstantNull", i); break; // 46
 
 
-        case spv::Op::OpFunction: output("Function", i); break; // 54
+        case spv::Op::OpFunction: decoder.decodeFunction(); break; // 54
         case spv::Op::OpFunctionParameter: output("FunctionParameter", i); break; // 55
-        case spv::Op::OpFunctionEnd: output("FunctionEnd", i); break; // 56
+        case spv::Op::OpFunctionEnd: decoder.decodeFunctionEnd(); break; // 56
         case spv::Op::OpFunctionCall: output("FunctionCall", i); break; // 57
 
         case spv::Op::OpVariable: decoder.decodeVariable(); break; // 59
@@ -303,7 +494,7 @@ void decode(const Instruction &i)
         case spv::Op::OpLoad: decoder.decodeLoad(); break; // 61
         case spv::Op::OpStore: decoder.decodeStore(); break; // 62
 
-        case spv::Op::OpAccessChain: output("AccessChain", i); break; // 65
+        case spv::Op::OpAccessChain: decoder.decodeAccessChain(); break; // 65
 
         case spv::Op::OpDecorate: output("Decorate", i); break; // 71
         case spv::Op::OpMemberDecorate: output("MemberDecorate", i); break; // 72
@@ -374,8 +565,6 @@ int main(int argc, char **argv)
     uint8_t buffer[64 * 1024];
     size_t length = fread(buffer, 1, 64 * 1024, f);
     fclose(f);
-
-    std::cout << length << std::endl;
 
     if(length < 6 * 4)
     {
