@@ -24,7 +24,6 @@ struct Header {
 };
 
 std::map<uint32_t, std::string> names;
-std::map<uint32_t, Type> types;
 
 const std::vector<std::string> storage_classes = {
     "UniformConstant",
@@ -229,7 +228,9 @@ struct InstructionDecoder {
         uint32_t result = decodeId();
         uint32_t component_type = decodeId();
         uint32_t component_count = decodeId();
-        types[result] = Type{Type::Vector, component_count};
+        Type type{Type::Vector, component_count};
+        type.nested_type = component_type;
+        types[result] = type;
         std::cout << ident() << "TypeVector " << result << " " << component_type << " " << component_count << std::endl;
     }
 
@@ -238,7 +239,9 @@ struct InstructionDecoder {
         uint32_t result = decodeId();
         uint32_t column_type = decodeId();
         uint32_t column_count = decodeId();
-        types[result] = Type{Type::Matrix, column_count};
+        Type type{Type::Matrix, column_count};
+        type.nested_type = column_type;
+        types[result] = type;
         std::cout << "TypeMatrix " << result << " " << column_type << " " << column_count << std::endl;
     }
 
@@ -247,17 +250,20 @@ struct InstructionDecoder {
         uint32_t result = decodeId();
         uint32_t element_type = decodeId();
         uint32_t length = decodeId();
-        types[result] = Type{Type::Array, length};
+        Type type{Type::Array, length};
+        type.nested_type = element_type;
+        types[result] = type;
         std::cout << ident() << "TypeArray " << result << " " << element_type << " " << length << std::endl;
     }
 
     void decodeTypePointer() // 32
     {
+        Type type{Type::Pointer};
         uint32_t result = decodeId();
         uint32_t storage_class = decodeId();
-        uint32_t type = decodeId();
-        types[result] = Type{Type::Pointer};
-        std::cout << ident() << "TypePointer " << result << " " << storage_classes[storage_class] << " " << type << std::endl;
+        type.nested_type = decodeId();
+        types[result] = type;
+        std::cout << ident() << "TypePointer " << result << " " << storage_classes[storage_class] << " " << type.nested_type << std::endl;
     }
 
     void decodeTypeFunction() // 33
@@ -278,7 +284,7 @@ struct InstructionDecoder {
         uint32_t resultType = decodeId();
         uint32_t result = decodeId();
 
-        std::cout << ident() << "Constant " << resultType << " " << result;
+        std::cout << ident() << "Constant " << types.at(resultType) << " " << result;
 
         while(offset + 1 < length)
         {
@@ -315,7 +321,7 @@ struct InstructionDecoder {
         uint32_t function_control = decodeId();
         uint32_t function_type = decodeId();
 
-        std::cout << ident() << "Function " << result_type << " " << names[result] << " " << function_controls[function_control] << " " << function_type << std::endl;
+        std::cout << ident() << "Function " << types.at(result_type) << " " << names[result] << " " << function_controls[function_control] << " " << function_type << std::endl;
 
         incIdent();
     }
@@ -331,8 +337,7 @@ struct InstructionDecoder {
         uint32_t resultType = decodeId();
         uint32_t result = decodeId();
         uint32_t storage_class = decodeId();
-
-        std::cout << ident() << "Variable " << resultType << " " << result << " " << storage_classes.at(storage_class);
+        std::cout << ident() << "Variable " << types.at(resultType) << " " << result << " " << storage_classes.at(storage_class);
 
         if(offset + 1 < length)
         {
@@ -349,7 +354,7 @@ struct InstructionDecoder {
         uint32_t result = decodeId();
         uint32_t pointer = decodeId();
 
-        std::cout << ident() << "Load " << resultType << " " << result << " " << pointer;
+        std::cout << ident() << "Load " << types.at(resultType) << " " << result << " " << pointer;
 
         if(offset + 1 < length)
         {
@@ -382,7 +387,7 @@ struct InstructionDecoder {
         uint32_t result = decodeId();
         uint32_t base = decodeId();
 
-        std::cout << ident() << "AccessChain " << result_type << " " << result << " " << base;
+        std::cout << ident() << "AccessChain " << types.at(result_type) << " " << result << " " << base;
 
         while(offset + 1 < length)
         {
@@ -392,6 +397,16 @@ struct InstructionDecoder {
         std::cout << std::endl;
     }
 
+    void decodeIAdd() // 128
+    {
+        uint32_t resultType = decodeId();
+        uint32_t result = decodeId();
+        uint32_t operand1 = decodeId();
+        uint32_t operand2 = decodeId();
+
+        std::cout << ident() << "IAdd " << types.at(resultType) << " " << result << " <- " << operand1 << " " << operand2 << std::endl;
+    }
+
     void decodeFAdd() // 129
     {
         uint32_t resultType = decodeId();
@@ -399,7 +414,7 @@ struct InstructionDecoder {
         uint32_t operand1 = decodeId();
         uint32_t operand2 = decodeId();
 
-        std::cout << ident() << "FAdd " << resultType << " " << result << " " << operand1 << " " << operand2 << std::endl;
+        std::cout << ident() << "FAdd " << types.at(resultType) << " " << result << " <- " << operand1 << " " << operand2 << std::endl;
     }
 
     void decodeFSub() // 131
@@ -409,8 +424,19 @@ struct InstructionDecoder {
         uint32_t operand1 = decodeId();
         uint32_t operand2 = decodeId();
 
-        std::cout << ident() << "FSub " << resultType << " " << result << " " << operand1 << " " << operand2 << std::endl;
+        std::cout << ident() << "FSub " << types.at(resultType) << " " << result << " <- " << operand1 << " " << operand2 << std::endl;
     }
+
+    void decodeFMul() // 133
+    {
+        uint32_t resultType = decodeId();
+        uint32_t result = decodeId();
+        uint32_t operand1 = decodeId();
+        uint32_t operand2 = decodeId();
+
+        std::cout << ident() << "FMul " << types.at(resultType) << " " << result << " <- " << operand1 << " " << operand2 << std::endl;
+    }
+
 
     void decodeLabel() // 248
     {
@@ -504,12 +530,12 @@ void decode(const Instruction &i)
         case spv::Op::OpCompositeExtract: output("CompositeExtract", i); break; // 80
 
         case spv::Op::OpFNegate: output("OpFNegate", i); break; // 127
-        case spv::Op::OpIAdd: output("IAdd", i); break; // 128
+        case spv::Op::OpIAdd: decoder.decodeIAdd(); break; // 128
         case spv::Op::OpFAdd: decoder.decodeFAdd(); break; // 129
         case spv::Op::OpISub: output("ISub", i); break; // 130
         case spv::Op::OpFSub: decoder.decodeFSub(); break; // 131
         case spv::Op::OpIMul: output("IMul", i); break; // 132
-        case spv::Op::OpFMul: output("FMul", i); break; // 133
+        case spv::Op::OpFMul: decoder.decodeFMul(); break; // 133
 
         case spv::Op::OpFDiv: output("FDiv", i); break; // 136
 
