@@ -135,7 +135,7 @@ struct InstructionDecoder {
 
         names[target] = name;
 
-        std::cout << ident() << "Name " << target << " " << name << std::endl;
+        std::cout << ident() << "Name " << std::hex << target << " " << name << std::endl;
     }
 
     void decodeExtInstImport()
@@ -279,6 +279,20 @@ struct InstructionDecoder {
         std::cout << ")" << std::endl;
     }
 
+    void decodeConstantTrue() // 41
+    {
+        uint32_t resultType = decodeId();
+        uint32_t result = decodeId();
+        std::cout << "ConstantTrue "  << types.at(resultType) << " " << result << std::endl;
+    }
+
+    void decodeConstantFalse() // 42
+    {
+        uint32_t resultType = decodeId();
+        uint32_t result = decodeId();
+        std::cout << "ConstantFalse "  << types.at(resultType) << " " << result << std::endl;
+    }
+
     void decodeConstant() // 43
     {
         uint32_t resultType = decodeId();
@@ -288,7 +302,7 @@ struct InstructionDecoder {
 
         while(offset + 1 < length)
         {
-            uint32_t constituent = decodeId();
+            uint32_t value = decodeId();
 
             auto type = types.find(resultType);
             if(type != types.end())
@@ -301,14 +315,29 @@ struct InstructionDecoder {
                             uint32_t u;
                             float f;
                         } tmp;
-                        tmp.u = constituent;
+                        tmp.u = value;
                         std::cout << " " << tmp.u << " " << tmp.f;
                         break;
                     }
                     default:
-                        std::cout << " " << constituent;
+                        std::cout << " " << value;
                 }
             }
+        }
+
+        std::cout << std::endl;
+    }
+
+    void decodeConstantComposite() // 44
+    {
+        uint32_t resultType = decodeId();
+        uint32_t result = decodeId();
+
+        std::cout << ident() << "ConstantComposite " << types.at(resultType) << " " << result;
+        while(offset + 1 < length)
+        {
+            uint32_t constituent = decodeId();
+            std::cout << " " << constituent;
         }
 
         std::cout << std::endl;
@@ -321,9 +350,17 @@ struct InstructionDecoder {
         uint32_t function_control = decodeId();
         uint32_t function_type = decodeId();
 
-        std::cout << ident() << "Function " << types.at(result_type) << " " << names[result] << " " << function_controls[function_control] << " " << function_type << std::endl;
+        std::cout << ident() << "Function " << types.at(result_type) << " " << names.at(result) << " " << function_controls[function_control] << " " << function_type << std::endl;
 
         incIdent();
+    }
+
+    void decodeFunctionParameter() // 55
+    {
+        uint32_t result_type = decodeId();
+        uint32_t result  = decodeId();
+
+        std::cout << ident() << "FunctionParameter " << types.at(result_type) << " " << names.at(result) << std::endl;
     }
 
     void decodeFunctionEnd() // 56
@@ -337,7 +374,7 @@ struct InstructionDecoder {
         uint32_t resultType = decodeId();
         uint32_t result = decodeId();
         uint32_t storage_class = decodeId();
-        std::cout << ident() << "Variable " << types.at(resultType) << " " << result << " " << storage_classes.at(storage_class);
+        std::cout << ident() << "Variable " << types.at(resultType) << " " << names.at(result) << " " << storage_classes.at(storage_class);
 
         if(offset + 1 < length)
         {
@@ -437,12 +474,77 @@ struct InstructionDecoder {
         std::cout << ident() << "FMul " << types.at(resultType) << " " << result << " <- " << operand1 << " " << operand2 << std::endl;
     }
 
+    void decodeVectorTimesScalar() // 142
+    {
+        uint32_t resultType = decodeId();
+        uint32_t result = decodeId();
+        uint32_t vector = decodeId();
+        uint32_t scalar = decodeId();
+
+        std::cout << ident() << "VectorTimesScalar " << types.at(resultType) << " " << result << " <- " << vector << " " << scalar << std::endl;
+    }
+
+    void decodeMatrixTimesVector() // 145
+    {
+        uint32_t resultType = decodeId();
+        uint32_t result = decodeId();
+        uint32_t matrix = decodeId();
+        uint32_t vector = decodeId();
+
+        std::cout << ident() << "MatrixTimesVector " << types.at(resultType) << " " << result << " <- " << matrix << " " << vector << std::endl;
+    }
+
+    void decodeMatrixTimesMatrix() // 146
+    {
+        uint32_t resultType = decodeId();
+        uint32_t result = decodeId();
+        uint32_t left_matrix = decodeId();
+        uint32_t right_matrix = decodeId();
+
+        std::cout << ident() << "MatrixTimesMatrix " << types.at(resultType) << " " << result << " <- " << left_matrix << " " << right_matrix << std::endl;
+    }
 
     void decodeLabel() // 248
     {
         uint32_t result = decodeId();
 
-        std::cout << ident() << "Label " << result << std::endl;
+        std::cout << result << ":" << std::endl;
+    }
+
+    void decodeBranch() // 249
+    {
+        uint32_t target_label = decodeId();
+
+        std::cout << ident() << "Branch " << target_label << std::endl;
+    }
+
+    void decodeBranchConditional() // 250
+    {
+        uint32_t conditional = decodeId();
+        uint32_t true_label = decodeId();
+        uint32_t false_label = decodeId();
+
+        std::cout << ident() << "BranchConditional " << conditional << " " << true_label << " " << false_label;
+
+        while(offset + 1 < length)
+        {
+            uint32_t branch_weight = decodeId();
+            std::cout << " " << branch_weight;
+        }
+
+        std::cout << std::endl;
+    }
+
+    void decodeReturn() // 253
+    {
+        std::cout << ident() << "Return" << std::endl;
+    }
+
+    void decodeReturnValue() // 254
+    {
+        uint32_t value = decodeId();
+
+        std::cout << ident() << "ReturnValue " << value << std::endl;
     }
 
     unsigned offset = 0;
@@ -502,16 +604,16 @@ void decode(const Instruction &i)
         case spv::Op::OpTypePointer: decoder.decodeTypePointer(); break; // 32
         case spv::Op::OpTypeFunction: decoder.decodeTypeFunction(); break; // 33
 
-        case spv::Op::OpConstantTrue: output("ConstantTrue", i); break; // 41
-        case spv::Op::OpConstantFalse: output("ConstantFalse", i); break; // 42
+        case spv::Op::OpConstantTrue: decoder.decodeConstantTrue(); break; // 41
+        case spv::Op::OpConstantFalse: decoder.decodeConstantFalse(); break; // 42
         case spv::Op::OpConstant: decoder.decodeConstant(); break; // 43
-        case spv::Op::OpConstantComposite: output("ConstantComposite", i); break; // 44
+        case spv::Op::OpConstantComposite: decoder.decodeConstantComposite(); break; // 44
         case spv::Op::OpConstantSampler: output("ConstantSampler", i); break; // 45
         case spv::Op::OpConstantNull: output("ConstantNull", i); break; // 46
 
 
         case spv::Op::OpFunction: decoder.decodeFunction(); break; // 54
-        case spv::Op::OpFunctionParameter: output("FunctionParameter", i); break; // 55
+        case spv::Op::OpFunctionParameter: decoder.decodeFunctionParameter(); break; // 55
         case spv::Op::OpFunctionEnd: decoder.decodeFunctionEnd(); break; // 56
         case spv::Op::OpFunctionCall: output("FunctionCall", i); break; // 57
 
@@ -539,10 +641,10 @@ void decode(const Instruction &i)
 
         case spv::Op::OpFDiv: output("FDiv", i); break; // 136
 
-        case spv::Op::OpVectorTimesScalar: output("VectorTimesScalar", i); break; // 136
+        case spv::Op::OpVectorTimesScalar: decoder.decodeVectorTimesScalar(); break; // 142
 
-        case spv::Op::OpMatrixTimesVector: output("MatrixTimesVector ", i); break; // 145
-        case spv::Op::OpMatrixTimesMatrix: output("MatrixTimesMatrix ", i); break; // 146
+        case spv::Op::OpMatrixTimesVector: decoder.decodeMatrixTimesVector(); break; // 145
+        case spv::Op::OpMatrixTimesMatrix: decoder.decodeMatrixTimesMatrix(); break; // 146
 
         case spv::Op::OpDot: output("Dot", i); break; // 148
 
@@ -568,12 +670,12 @@ void decode(const Instruction &i)
         case spv::Op::OpLoopMerge: output("LoopMerge", i); break; // 246
         case spv::Op::OpSelectionMerge: output("SelectionMerge", i); break; // 247
         case spv::Op::OpLabel: decoder.decodeLabel(); break; // 248
-        case spv::Op::OpBranch: output("Branch", i); break; // 249
-        case spv::Op::OpBranchConditional: output("BranchConditional", i); break; // 250
+        case spv::Op::OpBranch: decoder.decodeBranch(); break; // 249
+        case spv::Op::OpBranchConditional: decoder.decodeBranchConditional(); break; // 250
         case spv::Op::OpSwitch: output("Switch", i); break; // 251
         case spv::Op::OpKill: output("Kill", i); break; // 252
-        case spv::Op::OpReturn: output("Return", i); break; // 253
-        case spv::Op::OpReturnValue: output("ReturnValue", i); break; // 254
+        case spv::Op::OpReturn: decoder.decodeReturn(); break; // 253
+        case spv::Op::OpReturnValue: decoder.decodeReturnValue(); break; // 254
 
         default: output("UNKNOWN", i); break;
     }

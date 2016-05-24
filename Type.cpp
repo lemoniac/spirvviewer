@@ -18,5 +18,7 @@ std::ostream &operator<<(std::ostream &os, const Type &type)
         default: os << "Unknown Type";
     }
 
+    os << std::hex;
+
     return os;
 }
