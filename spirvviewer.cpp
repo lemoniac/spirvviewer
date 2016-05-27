@@ -7,6 +7,7 @@
 #include <glm/vec4.hpp>
 #include <SDL.h>
 
+#include "Microcore.h"
 #include "Type.h"
 
 struct Variable {
