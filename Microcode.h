@@ -6,17 +6,23 @@ const uint8_t OP_MASK = 0b00001111;
 const uint8_t ALU_OP = 0;
 const uint8_t ALU_OP_IMM = 1 << 4;
 
+const uint8_t F_ALU_OP = 2 << 4;
+const uint8_t F_ALU_OP_IMM = 3 << 4;
+
+
 enum class AluOp : uint8_t {
-    FAdd = 0 | ALU_OP,
-    IAdd = 1 | ALU_OP,
-    FSub = 2 | ALU_OP,
-    ISub = 3 | ALU_OP
+    Add = 0 | ALU_OP,
+    Sub = 1 | ALU_OP,
+    Mul = 2 | ALU_OP,
+    Div = 3 | ALU_OP,
+    Mod = 4 | ALU_OP,
+    LShift = 5 | ALU_OP,
+    RShift = 6 | ALU_OP,
     // ...
 };
 
 enum class AluOpImm : uint8_t {
-    FSet = 0 | ALU_OP_IMM,
-    ISet = 1 | ALU_OP_IMM
+    Set = 0 | ALU_OP_IMM,
 };
 
 struct alu_op_t {

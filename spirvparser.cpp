@@ -76,6 +76,12 @@ const std::vector<std::string> function_controls = {
     "Const"
 };
 
+const std::vector<std::string> selection_controls = {
+    "None",
+    "Flatten",
+    "DontFlatten"
+};
+
 unsigned identation = 0;
 void incIdent() { identation++; }
 void decIdent() { if(identation == 0) throw std::runtime_error("???"); identation--; }
@@ -138,12 +144,30 @@ struct InstructionDecoder {
         std::cout << ident() << "Name " << std::hex << target << " " << name << std::endl;
     }
 
-    void decodeExtInstImport()
+    void decodeExtInstImport() // 11
     {
         uint32_t result = decodeId();
         std::string name = decodeLiteralString();
 
         std::cout << ident() << "ExtInstImport " << result << " " << name << std::endl;
+    }
+
+    void decodeExtInst() // 12
+    {
+        uint32_t resultType = decodeId();
+        uint32_t result = decodeId();
+        uint32_t set = decodeId();
+        uint32_t instruction = decodeId();
+
+        std::cout << ident() << "ExtInst " << types.at(resultType) << " " << result << " " << set << " " << instruction;
+
+        while(offset + 1 < length)
+        {
+            uint32_t operand = decodeId();
+            std::cout << " " << operand;
+        }
+
+        std::cout << std::endl;
     }
 
     void decodeMemoryModel() // 14
@@ -391,7 +415,11 @@ struct InstructionDecoder {
         uint32_t result = decodeId();
         uint32_t pointer = decodeId();
 
-        std::cout << ident() << "Load " << types.at(resultType) << " " << result << " " << pointer;
+        std::cout << ident() << "Load " << types.at(resultType) << " " << result << " ";
+        if(names.find(pointer) != names.end())
+            std::cout << names.at(pointer);
+        else
+            std::cout << pointer;
 
         if(offset + 1 < length)
         {
@@ -407,7 +435,12 @@ struct InstructionDecoder {
         uint32_t pointer = decodeId();
         uint32_t object = decodeId();
 
-        std::cout << ident() << "Store " << pointer << " " << object;
+        std::cout << ident() << "Store ";
+        if(names.find(pointer) != names.end())
+            std::cout << names.at(pointer);
+        else
+            std::cout << pointer;
+         std::cout << " " << object;
 
         if(offset + 1 < length)
         {
@@ -434,6 +467,29 @@ struct InstructionDecoder {
         std::cout << std::endl;
     }
 
+    void decodeCompositeConstruct() // 80
+    {
+        uint32_t result_type = decodeId();
+        uint32_t result = decodeId();
+        std::cout << ident() << "CompositeConstruct " << types.at(result_type) << " " << result;
+
+        while(offset + 1 < length)
+        {
+            uint32_t constituent = decodeId();
+            std::cout << " " << constituent;
+        }
+        std::cout << std::endl;
+    }
+
+    void decodeFNegate() // 127
+    {
+        uint32_t resultType = decodeId();
+        uint32_t result = decodeId();
+        uint32_t operand = decodeId();
+
+        std::cout << ident() << "FNegate " << types.at(resultType) << " - " << result << " <- " << operand <<std::endl;
+    }
+
     void decodeIAdd() // 128
     {
         uint32_t resultType = decodeId();
@@ -441,7 +497,7 @@ struct InstructionDecoder {
         uint32_t operand1 = decodeId();
         uint32_t operand2 = decodeId();
 
-        std::cout << ident() << "IAdd " << types.at(resultType) << " " << result << " <- " << operand1 << " " << operand2 << std::endl;
+        std::cout << ident() << "IAdd " << types.at(resultType) << " " << result << " <- " << operand1 << " + " << operand2 << std::endl;
     }
 
     void decodeFAdd() // 129
@@ -451,7 +507,7 @@ struct InstructionDecoder {
         uint32_t operand1 = decodeId();
         uint32_t operand2 = decodeId();
 
-        std::cout << ident() << "FAdd " << types.at(resultType) << " " << result << " <- " << operand1 << " " << operand2 << std::endl;
+        std::cout << ident() << "FAdd " << types.at(resultType) << " " << result << " <- " << operand1 << " + " << operand2 << std::endl;
     }
 
     void decodeFSub() // 131
@@ -461,7 +517,7 @@ struct InstructionDecoder {
         uint32_t operand1 = decodeId();
         uint32_t operand2 = decodeId();
 
-        std::cout << ident() << "FSub " << types.at(resultType) << " " << result << " <- " << operand1 << " " << operand2 << std::endl;
+        std::cout << ident() << "FSub " << types.at(resultType) << " " << result << " <- " << operand1 << " - " << operand2 << std::endl;
     }
 
     void decodeFMul() // 133
@@ -471,7 +527,17 @@ struct InstructionDecoder {
         uint32_t operand1 = decodeId();
         uint32_t operand2 = decodeId();
 
-        std::cout << ident() << "FMul " << types.at(resultType) << " " << result << " <- " << operand1 << " " << operand2 << std::endl;
+        std::cout << ident() << "FMul " << types.at(resultType) << " " << result << " <- " << operand1 << " * " << operand2 << std::endl;
+    }
+
+    void decodeFDiv() // 136
+    {
+        uint32_t resultType = decodeId();
+        uint32_t result = decodeId();
+        uint32_t operand1 = decodeId();
+        uint32_t operand2 = decodeId();
+
+        std::cout << ident() << "FDiv " << types.at(resultType) << " " << result << " <- " << operand1 << " / " << operand2 << std::endl;
     }
 
     void decodeVectorTimesScalar() // 142
@@ -481,7 +547,7 @@ struct InstructionDecoder {
         uint32_t vector = decodeId();
         uint32_t scalar = decodeId();
 
-        std::cout << ident() << "VectorTimesScalar " << types.at(resultType) << " " << result << " <- " << vector << " " << scalar << std::endl;
+        std::cout << ident() << "VectorTimesScalar " << types.at(resultType) << " " << result << " <- " << vector << " * " << scalar << std::endl;
     }
 
     void decodeMatrixTimesVector() // 145
@@ -502,6 +568,113 @@ struct InstructionDecoder {
         uint32_t right_matrix = decodeId();
 
         std::cout << ident() << "MatrixTimesMatrix " << types.at(resultType) << " " << result << " <- " << left_matrix << " " << right_matrix << std::endl;
+    }
+
+    void decodeDot() // 148
+    {
+        uint32_t resultType = decodeId();
+        uint32_t result = decodeId();
+        uint32_t vector1 = decodeId();
+        uint32_t vector2 = decodeId();
+
+        std::cout << ident() << "Dot " << types.at(resultType) << " " << result << " <- " << vector1 << " * " << vector2 << std::endl;
+    }
+
+    void decodeLogicalEqual() // 164
+    {
+        uint32_t resultType = decodeId();
+        uint32_t result = decodeId();
+        uint32_t operand1 = decodeId();
+        uint32_t operand2 = decodeId();
+
+        std::cout << ident() << "LogicalEqual " << types.at(resultType) << " " << result << " <- " << operand1 << " == " << operand2 << std::endl;
+    }
+
+    void decodeLogicalAnd() // 167
+    {
+        uint32_t resultType = decodeId();
+        uint32_t result = decodeId();
+        uint32_t operand1 = decodeId();
+        uint32_t operand2 = decodeId();
+
+        std::cout << ident() << "LogicalAnd " << types.at(resultType) << " " << result << " <- " << operand1 << " & " << operand2 << std::endl;
+    }
+
+    void decodeLogicalNot() // 168
+    {
+        uint32_t resultType = decodeId();
+        uint32_t result = decodeId();
+        uint32_t operand = decodeId();
+
+        std::cout << ident() << "LogicalNot " << types.at(resultType) << " " << result << " <- !" << operand << std::endl;
+    }
+
+    void decodeIEqual() // 170
+    {
+        uint32_t resultType = decodeId();
+        uint32_t result = decodeId();
+        uint32_t operand1 = decodeId();
+        uint32_t operand2 = decodeId();
+
+        std::cout << ident() << "IEqual " << types.at(resultType) << " " << result << " <- " << operand1 << " == " << operand2 << std::endl;
+    }
+
+    void decodeINotEqual() // 171
+    {
+        uint32_t resultType = decodeId();
+        uint32_t result = decodeId();
+        uint32_t operand1 = decodeId();
+        uint32_t operand2 = decodeId();
+
+        std::cout << ident() << "INotEqual " << types.at(resultType) << " " << result << " <- " << operand1 << " != " << operand2 << std::endl;
+    }
+
+    void decodeSGreaterThan() // 173
+    {
+        uint32_t resultType = decodeId();
+        uint32_t result = decodeId();
+        uint32_t operand1 = decodeId();
+        uint32_t operand2 = decodeId();
+
+        std::cout << ident() << "SGreaterThan " << types.at(resultType) << " " << result << " <- " << operand1 << " > " << operand2 << std::endl;
+    }
+
+    void decodeSLessThan() // 177
+    {
+        uint32_t resultType = decodeId();
+        uint32_t result = decodeId();
+        uint32_t operand1 = decodeId();
+        uint32_t operand2 = decodeId();
+
+        std::cout << ident() << "SLessThan " << types.at(resultType) << " " << result << " <- " << operand1 << " < " << operand2 << std::endl;
+    }
+
+    void decodeFOrdLessThan() // 184
+    {
+        uint32_t resultType = decodeId();
+        uint32_t result = decodeId();
+        uint32_t operand1 = decodeId();
+        uint32_t operand2 = decodeId();
+
+        std::cout << ident() << "FOrdLessThan " << types.at(resultType) << " " << result << " <- " << operand1 << " < " << operand2 << std::endl;
+    }
+
+    void decodeFOrdGreaterThan() // 186
+    {
+        uint32_t resultType = decodeId();
+        uint32_t result = decodeId();
+        uint32_t operand1 = decodeId();
+        uint32_t operand2 = decodeId();
+
+        std::cout << ident() << "FOrdGreaterThan " << types.at(resultType) << " " << result << " <- " << operand1 << " > " << operand2 << std::endl;
+    }
+
+    void decodeSelectionMerge() // 247
+    {
+        uint32_t merge_block = decodeId();
+        uint32_t selection_control = decodeId();
+
+        std::cout << ident() << "SelectionMerge " << merge_block << " " << selection_controls.at(selection_control) << std::endl;
     }
 
     void decodeLabel() // 248
@@ -582,7 +755,7 @@ void decode(const Instruction &i)
         case spv::Op::OpMemberName: output("Member", i); break; // 6
 
         case spv::Op::OpExtInstImport: decoder.decodeExtInstImport(); break; // 11
-        case spv::Op::OpExtInst: output("ExtInst", i); break; // 12
+        case spv::Op::OpExtInst: decoder.decodeExtInst(); break; // 12
 
         case spv::Op::OpMemoryModel: decoder.decodeMemoryModel(); break; // 14
         case spv::Op::OpEntryPoint: decoder.decodeEntryPoint(); break; // 15
@@ -628,10 +801,10 @@ void decode(const Instruction &i)
         case spv::Op::OpMemberDecorate: output("MemberDecorate", i); break; // 72
 
         case spv::Op::OpVectorShuffle: output("VectorShuffle", i); break; // 79
-        case spv::Op::OpCompositeConstruct: output("CompositeConstruct", i); break; // 80
+        case spv::Op::OpCompositeConstruct: decoder.decodeCompositeConstruct(); break; // 80
         case spv::Op::OpCompositeExtract: output("CompositeExtract", i); break; // 80
 
-        case spv::Op::OpFNegate: output("OpFNegate", i); break; // 127
+        case spv::Op::OpFNegate: decoder.decodeFNegate(); break; // 127
         case spv::Op::OpIAdd: decoder.decodeIAdd(); break; // 128
         case spv::Op::OpFAdd: decoder.decodeFAdd(); break; // 129
         case spv::Op::OpISub: output("ISub", i); break; // 130
@@ -639,36 +812,37 @@ void decode(const Instruction &i)
         case spv::Op::OpIMul: output("IMul", i); break; // 132
         case spv::Op::OpFMul: decoder.decodeFMul(); break; // 133
 
-        case spv::Op::OpFDiv: output("FDiv", i); break; // 136
+        case spv::Op::OpFDiv: decoder.decodeFDiv(); break; // 136
 
         case spv::Op::OpVectorTimesScalar: decoder.decodeVectorTimesScalar(); break; // 142
 
         case spv::Op::OpMatrixTimesVector: decoder.decodeMatrixTimesVector(); break; // 145
         case spv::Op::OpMatrixTimesMatrix: decoder.decodeMatrixTimesMatrix(); break; // 146
 
-        case spv::Op::OpDot: output("Dot", i); break; // 148
+        case spv::Op::OpDot: decoder.decodeDot(); break; // 148
 
-        case spv::Op::OpLogicalEqual: output("LogicalEqual", i); break; // 164
+        case spv::Op::OpLogicalEqual: decoder.decodeLogicalEqual(); break; // 164
+        case spv::Op::OpLogicalNotEqual: output("LogicalNotEqual", i); break; // 165
+        case spv::Op::OpLogicalOr: output("LogicalOr", i); break; // 166
+        case spv::Op::OpLogicalAnd: decoder.decodeLogicalAnd(); break; // 167
+        case spv::Op::OpLogicalNot: decoder.decodeLogicalNot(); break; // 168
 
-        case spv::Op::OpLogicalAnd: output("LogicalAnd", i); break; // 167
-        case spv::Op::OpLogicalNot: output("LogicalNot", i); break; // 168
+        case spv::Op::OpIEqual: decoder.decodeIEqual(); break; // 170
+        case spv::Op::OpINotEqual: decoder.decodeINotEqual(); break; // 171
 
-        case spv::Op::OpIEqual: output("IEqual", i); break; // 170
-        case spv::Op::OpINotEqual: output("INotEqual", i); break; // 171
+        case spv::Op::OpSGreaterThan: decoder.decodeSGreaterThan(); break; // 173
 
-        case spv::Op::OpSGreaterThan: output("SGreaterThan", i); break; // 173
+        case spv::Op::OpSLessThan: decoder.decodeSLessThan(); break; // 177
 
-        case spv::Op::OpSLessThan: output("SLessThan", i); break; // 177
+        case spv::Op::OpFOrdLessThan: decoder.decodeFOrdLessThan(); break; // 184
 
-        case spv::Op::OpFOrdLessThan: output("FOrdLessThan", i); break; // 184
-
-        case spv::Op::OpFOrdGreaterThan: output("FOrdGreaterThan", i); break; // 186
+        case spv::Op::OpFOrdGreaterThan: decoder.decodeFOrdGreaterThan(); break; // 186
 
         case spv::Op::OpFOrdLessThanEqual: output("FOrdLessThanEqual", i); break; // 188
 
         case spv::Op::OpPhi: output("Phi", i); break; // 245
         case spv::Op::OpLoopMerge: output("LoopMerge", i); break; // 246
-        case spv::Op::OpSelectionMerge: output("SelectionMerge", i); break; // 247
+        case spv::Op::OpSelectionMerge: decoder.decodeSelectionMerge(); break; // 247
         case spv::Op::OpLabel: decoder.decodeLabel(); break; // 248
         case spv::Op::OpBranch: decoder.decodeBranch(); break; // 249
         case spv::Op::OpBranchConditional: decoder.decodeBranchConditional(); break; // 250

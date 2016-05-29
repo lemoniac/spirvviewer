@@ -16,7 +16,10 @@ void Microcore::execute()
                 alu_op_t &alu_op = *(alu_op_t *)&inst;
                 switch(AluOp(op))
                 {
-                    case AluOp::IAdd: state.uscalar[alu_op.dst] = state.uscalar[alu_op.src0] + state.uscalar[alu_op.src1]; break;
+                    case AluOp::Add: state.uscalar[alu_op.dst] = state.uscalar[alu_op.src0] + state.uscalar[alu_op.src1]; break;
+                    case AluOp::Sub: state.uscalar[alu_op.dst] = state.uscalar[alu_op.src0] - state.uscalar[alu_op.src1]; break;
+                    case AluOp::Mul: state.uscalar[alu_op.dst] = state.uscalar[alu_op.src0] * state.uscalar[alu_op.src1]; break;
+                    case AluOp::Div: state.uscalar[alu_op.dst] = state.uscalar[alu_op.src0] / state.uscalar[alu_op.src1]; break;
                 }
                 break;
             }
@@ -26,8 +29,7 @@ void Microcore::execute()
                 alu_op_imm_t &alu_op_imm = *(alu_op_imm_t *)&inst;
                 switch(AluOpImm(op))
                 {
-                    case AluOpImm::ISet: state.uscalar[alu_op_imm.dst] = alu_op_imm.imm; break;
-                    case AluOpImm::FSet: break;
+                    case AluOpImm::Set: state.uscalar[alu_op_imm.dst] = alu_op_imm.imm; break;
                 }
                 break;
             }
